@@ -1,0 +1,78 @@
+---
+ - hosts: web1
+   become: true
+   tasks:
+    - name: Install packages
+      apt: pkg={{ item }} state=installed  update_cache=true
+      with_items:
+       - apache2
+       - mysql-server
+       - mysql-client
+       - php
+       - libapache2-mod-php
+       - php-mcrypt
+       - php-mysql
+       - unzip
+       - python-pip
+
+    - name: Start Services
+      service: name={{ item }} state=started
+      with_items:
+       - apache2
+       - mysql
+
+    - name: installing pymysql
+      command: pip install pymysql
+
+    - name: Setup MySQL root password
+      command: mysqladmin -u root password rootpassword
+
+    - name: Create a new database for wordpress
+      mysql_db:
+        name: wordpress
+        login_user: root
+        login_password: rootpassword
+        state: present
+        login_unix_socket: /var/run/mysqld/mysqld.sock
+
+    - name: Creating database and user previlages
+      mysql_user:
+        name: wordpressuser
+        password: password
+        priv: 'wordpress.*:ALL'
+        state: present
+
+    - name: Download and unarchive Wordpress
+      unarchive:
+        src: https://wordpress.org/latest.zip
+        dest: /var/www/html
+        remote_src: yes
+
+    - name: Setting up wordpress
+      get_url:
+        url: https://gitlab.com/roybhaskar9/devops/raw/master/coding/chef/chefwordpress/files/default/wp-config-sample.php
+        dest: /var/www/html/wordpress/wp-config.php
+
+    - name: Correcting directory permissions
+      file:
+        path: /var/www/html/wordpress
+        state: directory
+        recruse: yes
+        owner: www-data
+        group: www-data
+        mode: 0775
+
+    - name: Correcting file permissions
+      file:
+        path: /var/www/html/wordpress
+        state: file
+        recruse: yes
+        owner: www-data
+        group: www-data
+        mode: 0775
+
+    - name: Restart Services
+      service: name={{ item }} state=restarted
+      with_items:
+       - apache2
+       - mysql
